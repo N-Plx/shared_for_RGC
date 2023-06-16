@@ -2,7 +2,7 @@
 some small useful things to share with rgc
 
 # FCup reading
-You can run it using clas12root.
+You can run it using clas12root. It can be run on ifarm with :
 
 >source /group/clas12/packages/setup.csh
 >
