@@ -82,11 +82,11 @@ void FCup_reading(string path_to_gmn, int run_min, int run_max)
 	  Helicity = HEL.getInt("helicity", 0);
 	  
 	  //Scalers information
-	  if(HEL_SCALER.getRows()>0)
+          for(int row=0; row<HEL_SCALER.getRows(); row++)
 	    {
-	      int hel = HEL_SCALER.getInt("helicity",0);
-	      if(hel == -1) FCup_hel_n+=HEL_SCALER.getFloat("fcupgated",0);
-	      if(hel == 1) FCup_hel_p+=HEL_SCALER.getFloat("fcupgated",0);
+	      int hel = HEL_SCALER.getByte("helicity",row);
+	      if(hel == -1) FCup_hel_n+=HEL_SCALER.getFloat("fcupgated",row);
+	      if(hel == 1) FCup_hel_p+=HEL_SCALER.getFloat("fcupgated",row);
 	    }
 
 	  if(RUN_SCALER.getRows()>0)
