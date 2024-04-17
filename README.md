@@ -50,7 +50,7 @@ Output:
 Notes:
 - The “Particle” class is used for handling particle kinematics/4-vectors.
 
-Documentation for details of the analysis: //Wiki Link Upcoming//
+Documentation for details of the analysis: [CLAS wiki](https://clasweb.jlab.org/wiki/index.php/Elastic_Analysis_for_PbPt_Extraction)
 
 # Utils Folder
 - utils for dealing with files
