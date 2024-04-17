@@ -112,7 +112,7 @@ vector<double> dilution_factor(TTree *REC_C, TTree* REC_signal, TCut exclusivity
 
 
 //-----------------------------------------------------------------------------------------MAIN-------------------------------------------------------------------------------------//
-int PbPt(string filename_C, string filename_signal, string target)
+int PbPt(string analysis_folder, string filename_C, string filename_signal, string target)
 {
   //Main function to compute PbPt
   //Input: (string) filenames of the files containing the list of runs, (string) target type
@@ -159,7 +159,7 @@ int PbPt(string filename_C, string filename_signal, string target)
   for (int i_files = 0; i_files < run_C.size(); i_files++)        
     {        
       int run_number = run_C.at(i_files);
-      string filename_C = "../analysis_elastic_" + to_string(run_number) + ".root";                                                     
+      string filename_C = analysis_folder + "/analysis_elastic_" + to_string(run_number) + ".root";                                                     
       //Check if the file exists        
       if (boost::filesystem::exists(filename_C))  
         {                                  
@@ -174,7 +174,7 @@ int PbPt(string filename_C, string filename_signal, string target)
   for (int i_files = 0; i_files < run_signal.size(); i_files++)       
     {                     
       int run_number = run_signal.at(i_files);
-      string filename_signal = "../analysis_elastic_" + to_string(run_number) + ".root";                                                     
+      string filename_signal = analysis_folder + "/analysis_elastic_" + to_string(run_number) + ".root";                                                     
       //Check if the file exists
       if (boost::filesystem::exists(filename_signal))  
         {                         
