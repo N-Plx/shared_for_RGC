@@ -9,22 +9,19 @@ double Ebeam = 10.6;
 double Pmass = 938.272081/1000.;
   
 //-------------------------------------------------------------------------------Define cuts---------------------------------------------------------------------------------------//
-TCut exclu_cuts(string target, string config)
+TCut exclu_cuts(string target)
 {
   //This function reads exclusivity cuts
-  //Input: string for target type, string for configuration FTOn/FTOff
+  //Input: string for target type
   //Ouput: TCut holding the exclusivity cuts
-  
   cout << "Exclusivity cuts" << endl;                                                                                                                                                                    
   TCut cut_all_topo;
-
   // Open file streams for CD and FD cuts files
-  string path_CD = "../elastic_" + target + "_" + config + "_CD_pass1_prelim/cuts.txt";
-  string path_FD = "../elastic_" + target + "_" + config + "_FD_pass1_prelim/cuts.txt";
+  string path_CD = "/projet/nucleon/pilleux/analysis_code/exclus_cuts/results/elastic_"+target+"_FTON_CDFD_pass1_verytight/cuts.txt";//"cuts_release_note_spin.txt";//"/projet/nucleon/pilleux/analysis_code/exclus_cuts/results/elastic_"+target+"_FTON_CDFD_pass1_verytight/cuts.txt";
+  string path_FD = "FD_testcuts.txt";//"cuts_release_note_spin.txt";//"FD_testcuts.txt";
   fstream file_CD, file_FD;
   file_CD.open(path_CD, ios::in);
   file_FD.open(path_FD, ios::in);
-
   //Check files sanity
   if (file_CD.bad())
     {
@@ -36,9 +33,7 @@ TCut exclu_cuts(string target, string config)
       std::cerr << "Unable to open " + path_FD + "\n";
       exit(8);
     }
-
   cout << ">>> Cut files opened " << path_CD << " and " << path_FD << endl;
-  
   string CD,FD;
   TCut cut_CD, cut_FD;
   // Define topological cuts for CD and FD
@@ -52,33 +47,24 @@ TCut exclu_cuts(string target, string config)
   cut_FD = FD.c_str();
   file_FD.close();
   //Build final cut to be applied
-  cut_all_topo = (cut_CD && topo_CD)||(cut_FD && topo_FD);
+  cut_all_topo = (cut_CD && topo_CD) || (cut_FD && topo_FD);
   cout << ">>> Cuts read" << endl;
   return cut_all_topo;
 }
 
 //-----------------------------------------------------------------------------Propagating stat errors-------------------------------------------------------------------//
-double error_asym(double Np, double Nm, double delta_Np, double delta_Nm)                                                                                                                                
-{
-  //This function computes the stat error on the asymmetry A = (Np-Nm)/(Np+Nm)
-  //Input: (double) FCup Normalized yields and their errors
-  //Ouput: (double) stat error                                                                                                                                                       
-  double den = pow((Np + Nm),2);    
-  double d_Np = 2*Np / den;        
-  double d_Nm = 2*Nm / den;       
-  double error = pow((d_Np*delta_Np),2) + pow((d_Nm*delta_Nm),2);     
-  return TMath::Sqrt(error);                  
-}     
-
-double error_asym_with_Df(double Np, double Nm, double delta_Np, double delta_Nm, double Df, double err_Df)
+double error_asym(double Np, double Nm, double dNp, double dNm, double Df=1, double dDf=0)
 {
   //This function computes the stat error including the error on the dilution factor A = (Np-Nm)/(Df*(Np+Nm))
   //Input: (double) FCup Normalized yields and their errors, Dilution Factor and its error
   //Ouput: (double) stat error
-  double err_asym = error_asym(Np, Nm,delta_Np,delta_Nm);
-  double d_Df = (Np - Nm)/((Np+Nm)*Df*Df);
-  double error = err_asym*err_asym + d_Df*d_Df*err_Df*err_Df;
-  return TMath::Sqrt(error);
+  double den = Df*pow((Np + Nm),2); 
+  double term_Np = 2*Np / den;        
+  double term_Nm = 2*Nm / den;
+  double asym = (Np-Nm)/(Df*(Np+Nm));
+  double term_Df = asym/Df;
+  double err_squared = term_Np*term_Np*dNp*dNp + term_Nm*term_Nm*dNm*dNm + term_Df*term_Df*dDf*dDf;
+  return TMath::Sqrt(err_squared);
 }
 
 //-----------------------------------------------------------------------------Dilution factor-------------------------------------------------------------------//
@@ -104,12 +90,9 @@ vector<double> dilution_factor(TTree *REC_C, TTree* REC_signal, TCut exclusivity
   double dDf1 = dC/yield_signal;
   double dDf2 = dS*yield_C/(yield_signal*yield_signal);
   double dDf = (FCup_run_signal/FCup_run_C) * TMath::Sqrt(dDf1*dDf1+dDf2*dDf2);
-  
   cout << ">>> Dilution factor " << Df << " pm "<<  dDf << endl;
-  
   return {Df,dDf};
 }
-
 
 //-----------------------------------------------------------------------------------------MAIN-------------------------------------------------------------------------------------//
 int PbPt(string analysis_folder, string filename_C, string filename_signal, string target)
@@ -152,45 +135,41 @@ int PbPt(string analysis_folder, string filename_C, string filename_signal, stri
   
   //-------------------------------------------------------------------------------Open files and get trees-------------------------------------------------------------------------//
   cout << "Opening input files" << endl;
+
+  vector<int> valid_runs_ND3, valid_runs_C;
   //Data trees for elastic events and fcup norms
   //CARBON
-  TChain *REC_C = new TChain("1electron");
+  TChain *REC_C = new TChain("Elastic_loose");
   TChain *scaler_C = new TChain("Scaler info");
   for (int i_files = 0; i_files < run_C.size(); i_files++)        
     {        
       int run_number = run_C.at(i_files);
-      string filename_C = analysis_folder + "/analysis_elastic_" + to_string(run_number) + ".root";                                                     
+      string filename_C = analysis_folder + "/pass1_verytight_cut_"+target+"_analysis_elastic_" + to_string(run_number) + ".root";                                                     
       //Check if the file exists        
       if (boost::filesystem::exists(filename_C))  
         {                                  
           REC_C->Add(filename_C.c_str()); 
-          scaler_C->Add(filename_C.c_str()); 
+          scaler_C->Add(filename_C.c_str());
+	  valid_runs_C.push_back(run_number);
         }   
       else {cout << filename_C << " does not exist, continuing" << endl;}       
     }
   //SIGNAL
-  TChain *REC_signal = new TChain("1electron");
+  TChain *REC_signal = new TChain("Elastic_loose");
   TChain *scaler_signal = new TChain("Scaler info");
   for (int i_files = 0; i_files < run_signal.size(); i_files++)       
     {                     
       int run_number = run_signal.at(i_files);
-      string filename_signal = analysis_folder + "/analysis_elastic_" + to_string(run_number) + ".root";                                                     
+      string filename_signal = analysis_folder + "/pass1_verytight_cut_"+target+"_analysis_elastic_" + to_string(run_number) + ".root";                                                     
       //Check if the file exists
       if (boost::filesystem::exists(filename_signal))  
         {                         
           REC_signal->Add(filename_signal.c_str());    
-          scaler_signal->Add(filename_signal.c_str());  
+          scaler_signal->Add(filename_signal.c_str());
+	  valid_runs_ND3.push_back(run_number);
         }       
       else {cout << filename_signal << " does not exist, continuing" << endl;}     
     }
-
-  //------------------------------------------------------------------------FTOn or ELMO configuration-------------------------------------------------------------------------------//
-  //Run range indicates which config (FTOn/FTOff) is used
-  string config;
-  if(run_min_C < 16843 && run_max_C < 16843 && run_min_signal < 16843 && run_max_signal < 16843) {config = "FTON"; cout << ">>>FTON configuration" << endl; }
-  else if(run_min_C >= 16843 && run_max_C >= 16843 && run_min_signal >= 16843 && run_max_signal >= 16843) {config ="ELMO"; cout << ">>>ELMO configuration" << endl;}
-  else { cout << "All runs are not in the same configuration" << endl; return 0;}
-  cout << endl;
 
   //---------------------------------------------------------------------------Get FCup normalizations-------------------------------------------------------------------------------//
   cout << "FCup normalization" << endl;
@@ -238,7 +217,7 @@ int PbPt(string analysis_folder, string filename_C, string filename_signal, stri
    cout << endl;
   
   //-------------------------------------------------------------------------Get exclu cuts------------------------------------------------------------------------------------------//
-  TCut total = exclu_cuts(target, config);
+  TCut total = exclu_cuts(target);
   TCut hel_plus("(Helicity == 1)");
   TCut hel_minus("(Helicity == -1)");
   TCut total_hel_plus  = total + hel_plus ;
@@ -250,9 +229,9 @@ int PbPt(string analysis_folder, string filename_C, string filename_signal, stri
   //                - checking TPol indep of it
   cout << endl;
   cout << "Q2 binning" << endl;
-  double Q2_low = 1.2;
-  double Q2_high = 5;
-  int nbins = 5;
+  double Q2_low = 1.8;//1.8;//1.2;
+  double Q2_high = 3.5;//3.5;//5;
+  int nbins = 10;
 
   // Create logarithmically spaced bin edges
   double logQ2_low = TMath::Log10(Q2_low);
@@ -282,9 +261,9 @@ int PbPt(string analysis_folder, string filename_C, string filename_signal, stri
   double denominator_for_error = 0;
   double numerator_error_DF = 0;
   
-  for(double i_log = logQ2_low; i_log < logQ2_high; i_log+=step){
-
-    count_bins++;    
+  for(double i_log = logQ2_low; TMath::Abs(i_log-logQ2_high) > 0.000001; i_log+=step){    
+    
+    count_bins++;
     
     double i = TMath::Power(10, i_log);
     double i_plus_step = TMath::Power(10, (i_log+step));
@@ -293,10 +272,10 @@ int PbPt(string analysis_folder, string filename_C, string filename_signal, stri
     TCut Q2_bin = ("Q2>=" + to_string(i) + "&&Q2<" + to_string(i_plus_step)).c_str();
     auto Q2_bin_fortext = ("Q^{2} >= " + to_string(i) + " Q^{2} < " + to_string(i_plus_step));
 
-    cout << Q2_bin_fortext << endl;
-    
+    cout << "Q2>=" + to_string(i) + "&&Q2<" + to_string(i_plus_step) << endl;
+
     //Mean Q2 of the bin
-    string name_Q2_distrib = ("h_Q2_distrib"+to_string(i));
+    string name_Q2_distrib = ("h_Q2_distrib"+to_string(count_bins));
     auto h_Q2_distrib = new TH1F(name_Q2_distrib.c_str(),"",80,Q2_low,Q2_high);
     string todo_Q2_distrib = "Q2>>" + name_Q2_distrib;
     REC_signal->Draw(todo_Q2_distrib.c_str(),total+Q2_bin,"goff");
@@ -320,7 +299,6 @@ int PbPt(string analysis_folder, string filename_C, string filename_signal, stri
     double A_num = 2*tau*G*(Pmass/Ebeam + G*(tau*Pmass/Ebeam + (1+tau)*tan2));
     double A_den = 1 + G*G*tau/epsilon;
     A_in_bins[count_bins] = A_num/A_den;
-    
     //Dilution Factor
     vector<double> Df_and_errors = dilution_factor(REC_C, REC_signal, total, Q2_bin, FCup_run_C, FCup_run_signal);
     Df_vect[count_bins] = Df_and_errors[0];
@@ -351,7 +329,7 @@ int PbPt(string analysis_folder, string filename_C, string filename_signal, stri
     
     //-------------------------------------------------------------------------Asymmetries----------------------------------------------------------------------------------//
     asym[count_bins] = (N_plus[count_bins] - N_minus[count_bins])/(Df_vect[count_bins]*(N_plus[count_bins] + N_minus[count_bins])); 
-    err_asym[count_bins] = error_asym_with_Df(N_plus[count_bins], N_minus[count_bins], err_N_plus[count_bins], err_N_minus[count_bins], Df_vect[count_bins], err_Df[count_bins]);
+    err_asym[count_bins] = error_asym(N_plus[count_bins], N_minus[count_bins], err_N_plus[count_bins], err_N_minus[count_bins], Df_vect[count_bins], err_Df[count_bins]);
 
     asym_C[count_bins] = (N_plus_C[count_bins] - N_minus_C[count_bins])/((N_plus_C[count_bins] + N_minus_C[count_bins]));
     err_asym_C[count_bins] = error_asym(N_plus_C[count_bins], N_minus_C[count_bins], err_N_plus_C[count_bins], err_N_minus_C[count_bins]);
@@ -364,7 +342,7 @@ int PbPt(string analysis_folder, string filename_C, string filename_signal, stri
     numerator_error_DF +=  err_Df[count_bins]*err_Df[count_bins]*A_in_bins[count_bins]*A_in_bins[count_bins]*(N_plus[count_bins] - N_minus[count_bins])*(N_plus[count_bins] - N_minus[count_bins]);
     PbPt[count_bins] = asym[count_bins]/A_in_bins[count_bins];
     err_PbPt[count_bins] = err_asym[count_bins]/A_in_bins[count_bins];
-   
+    
     cout << ">>> Asym: " << asym[count_bins] << " pm " <<  err_asym[count_bins] << endl;   
     cout << ">>> PbPt: " << PbPt[count_bins] << " pm " <<  err_PbPt[count_bins] << endl;
     cout << ">>> Asym for Carbon: " << asym_C[count_bins] << " pm " <<  err_asym_C[count_bins] << endl;   
@@ -373,6 +351,7 @@ int PbPt(string analysis_folder, string filename_C, string filename_signal, stri
   //Plotting
   style_PbPt_plots();
   TCanvas *c3 = new TCanvas("Asym", "Asym", 1200,1200);
+  c3->SetBorderMode(0);
   c3->Divide(1,2);
   c3->cd(1);
   auto gr_asym = new TGraphErrors(nbins,centers_Q2,asym, err_Q2, err_asym);
@@ -407,7 +386,6 @@ int PbPt(string analysis_folder, string filename_C, string filename_signal, stri
   legend->AddEntry(gr_asym, "Measured asymmetry","p");
   legend->AddEntry(gr_asym_C, "Carbon asymmetry","p");
   legend->Draw();
-
   
   c3->cd(2);
   auto gr_PbPt = new TGraphErrors(nbins,centers_Q2,PbPt, err_Q2, err_PbPt);
@@ -426,6 +404,7 @@ int PbPt(string analysis_folder, string filename_C, string filename_signal, stri
   gr_PbPt->GetYaxis()->SetTitle("#frac{A}{A_{th}}");
   style_large_plots();
   TCanvas *cdf = new TCanvas("Dilution factor","Dilution factor", 1200,1200);
+  cdf->SetBorderMode(0);
   auto gr_df = new TGraphErrors(nbins,centers_Q2,Df_vect,err_Q2, err_Df);
   gr_df->SetMarkerColor(color_C);
   gr_df->SetTitle("");
@@ -436,19 +415,7 @@ int PbPt(string analysis_folder, string filename_C, string filename_signal, stri
   gr_df->GetXaxis()->SetLimits(Q2_low,Q2_high);
   cdf->Print((path + "Df.pdf").c_str());
 
-  TCanvas *c = 0;            
-  TIter next(gROOT->GetListOfCanvases());                 
-  int count_canvases=0;                              
-  while ((c = (TCanvas *)next()))                                            
-    {                                                                                                           
-      string substr = string(c->GetName()).substr(0, 4);
-      string to_save = path + string(c->GetName()) + ".pdf";
-      if(substr == "Sign" || substr == "Carb") c->Print(to_save.c_str());
-      count_canvases++;                                                                                          
-    }
-
   //Final PbPt results
-
   //Asymmetry results for max likelihood and 1 bin integrated methods
   double PbPt_weighted = numerator/denominator;
   double error_DF_2 = numerator_error_DF/(denominator*denominator);
@@ -478,6 +445,12 @@ int PbPt(string analysis_folder, string filename_C, string filename_signal, stri
       cerr << "Error: Unable to open the file." << endl;
       return 1;
     }
+  outFile << "Signal runs: ";
+  for(int i=0; i<valid_runs_ND3.size()-1;i++) outFile << valid_runs_ND3.at(i) << ",";
+  outFile << valid_runs_ND3.at(valid_runs_ND3.size()-1) << endl;
+  outFile << "C runs: ";
+  for(int i=0; i<valid_runs_C.size()-1;i++) outFile << valid_runs_C.at(i) << ",";
+  outFile << valid_runs_C.at(valid_runs_C.size()-1) << endl;
   outFile << "PbPt = " << PbPt_weighted << " pm " << error_PbPt_weighted << endl;
   outFile << "Integrated Carbon asymmetry " << asym_C_integrated << " pm " << err_asym_C_integrated << endl;
   outFile << "FC Asymmetry for C runs " << (FCup_p_C - FCup_n_C)/(FCup_p_C + FCup_n_C) << endl;
@@ -487,7 +460,6 @@ int PbPt(string analysis_folder, string filename_C, string filename_signal, stri
     outFile << centers_Q2[i] << ","<< Df_vect[i] << ","<< err_Df[i] << ","<< A_in_bins[i]  << ","<< asym[i] << ","<< err_asym[i] << ","<< asym_C[i] << ","<< err_asym_C[i] << endl; 
   }
   outFile.close();
-  
   return 0;
 }
 
