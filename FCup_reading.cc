@@ -1,4 +1,4 @@
-#include "reader.h"
+#include "hipo4/reader.h"
 
 void FCup_reading(string path_to_gmn, int run_min, int run_max)
 {  
@@ -25,32 +25,33 @@ void FCup_reading(string path_to_gmn, int run_min, int run_max)
   
   //Define hipo variables
   hipo::reader reader;
+  //reader.setTags(1);
   hipo::dictionary factory;
   hipo::structure particles;
   hipo::event event;
   
   //Useful variables to be read from banks
   int RunNumber, Helicity;
-  double FCup_hel_p, FCup_hel_n, FCup_run, FCup_run_fromclas12root;
+  double FCup_hel_p, FCup_hel_n, FCup_hel_0, FCup_run;
   //just a counter for debugging and all  
   int reading=0;
 
   //Output 
   ofstream outfile;
   outfile.open ("FCup_"+to_string(run_min)+"_"+to_string(run_max)+".txt");
-  outfile << "RunNumber,FCup_pos,FCup_neg,FCup_run" << endl;
+  outfile << "RunNumber,FCup_pos,FCup_neg,FCup_zero,FCup_run" << endl;
 
   //Start loop on files
   for (int noffiles = 0; noffiles < files->GetLast() + 1; noffiles++)
-    {      
+    {
+      double FCup_run_min=9999, FCup_run_max=-9999;
       //Handling hipo files
       reader.open(files->At(noffiles)->GetTitle());
 
       //Run scaler beam charge
       clas12reader c12(files->At(noffiles)->GetTitle(),{0});
       c12.scalerReader();//must call this first                                                                                                                                                          
-      FCup_run_fromclas12root = c12.getRunBeamCharge();
-
+      
       reader.readDictionary(factory);
 
       hipo::bank HEL_SCALER(factory.getSchema("HEL::scaler"));
@@ -63,6 +64,7 @@ void FCup_reading(string path_to_gmn, int run_min, int run_max)
       //FCup counts from scalers
       FCup_hel_n = 0;
       FCup_hel_p = 0;      
+      FCup_hel_0 = 0;
       FCup_run = 0;
 
       //Start loop on events
@@ -87,14 +89,19 @@ void FCup_reading(string path_to_gmn, int run_min, int run_max)
 	      int hel = HEL_SCALER.getByte("helicity",row);
 	      if(hel == -1) FCup_hel_n+=HEL_SCALER.getFloat("fcupgated",row);
 	      if(hel == 1) FCup_hel_p+=HEL_SCALER.getFloat("fcupgated",row);
+	      if(hel == 0) FCup_hel_0+=HEL_SCALER.getFloat("fcupgated",row);
 	    }
 
 	  if(RUN_SCALER.getRows()>0)
             {
-              FCup_run=RUN_SCALER.getFloat("fcupgated",0);
-            }
+	      float entry = RUN_SCALER.getFloat("fcupgated",0);
+	      if(entry>FCup_run_max) FCup_run_max=entry;
+	      if(entry<FCup_run_min) FCup_run_min=entry;
+	      FCup_run =  FCup_run_max - FCup_run_min;
+	    }
 	}//END LOOP ON EVENTS
-      outfile << RunNumber << "," << FCup_hel_p << "," << FCup_hel_n << "," << FCup_run << endl;//<< " " << FCup_run_fromclas12root << endl;
+      cout << RUN_SCALER.getFloat("fcupgated",0) << " " << FCup_run_max << " " << FCup_run_min << " " << FCup_run << " " << FCup_hel_n << " " << FCup_hel_p << " " << FCup_hel_0 << endl;
+      outfile << RunNumber << "," << FCup_hel_p << "," << FCup_hel_n << "," << FCup_hel_0 << "," << FCup_run << endl;
       cout << "Number of events read : " << reading << endl;
     }//END LOOP ON FILES
   outfile.close();
