@@ -16,10 +16,10 @@ void style_PbPt_plots()
 {
   // Create a new TStyle object
   TStyle *PbPtStyle = new TStyle("PbPtStyle", "PbPt Style");
+
+  PbPtStyle->SetCanvasColor(0);
   
   PbPtStyle->SetOptTitle(0); // Turn off titles
-  PbPtStyle->SetFrameLineWidth(0); //Remove box around the frame
-  PbPtStyle->SetFrameBorderMode(0);
   PbPtStyle->SetOptStat("e"); //No stat box
   PbPtStyle->SetTitleSize(0.07, "X"); // Set title size for X axis
   PbPtStyle->SetTitleSize(0.07, "Y"); // Set title size for Y axis
@@ -36,8 +36,9 @@ void style_PbPt_plots()
   PbPtStyle->SetPadBorderSize(0);
   PbPtStyle->SetPadBorderMode(0);
   
+  
   PbPtStyle->SetLegendBorderSize(-1); 
-  PbPtStyle->SetLegendFont(42); 
+  PbPtStyle->SetLegendFont(42);
   
   // Set the default style to the PbPt style
   gROOT->SetStyle("PbPtStyle");
