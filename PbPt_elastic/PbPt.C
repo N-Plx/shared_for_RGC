@@ -48,6 +48,7 @@ TCut exclu_cuts(string target)
   file_FD.close();
   //Build final cut to be applied
   cut_all_topo = (cut_CD && topo_CD) || (cut_FD && topo_FD);
+  cut_all_topo =  cut_all_topo + "El_fiducial && Nuc_chi2pid<3.4 && Nuc_chi2pid>-2.6 && TMath::Abs(El_chi2pid)<3";
   cout << ">>> Cuts read" << endl;
   return cut_all_topo;
 }
@@ -69,7 +70,7 @@ double error_asym(double Np, double Nm, double dNp, double dNm, double Df=1, dou
 
 //-----------------------------------------------------------------------------Dilution factor-------------------------------------------------------------------//
 
-vector<double> dilution_factor(TTree *REC_C, TTree* REC_signal, TCut exclusivity, TCut Q2_bin, double FCup_run_C, double FCup_run_signal)
+vector<double> dilution_factor(TTree *REC_C, TTree* REC_signal, TCut exclusivity, TCut Q2_bin, double FCup_run_C, double FCup_run_signal, string target)
 {
   //Computing the dilution factor
   //Input: (TTree*) C and Signal data, (TCut) exclusivity and binning, (double) FCup norms
@@ -85,11 +86,13 @@ vector<double> dilution_factor(TTree *REC_C, TTree* REC_signal, TCut exclusivity
   double normalised_C =  yield_C/FCup_run_C;
   double normalised_signal =  yield_signal/FCup_run_signal;
   //Dilution Factor
-  double Df = 1 - (normalised_C/normalised_signal);
+  double constant = 0.7;
+  if(target=="NH3") constant = 0.82;
+  double Df = 1 - constant*(normalised_C/normalised_signal);
   //Stat Error
   double dDf1 = dC/yield_signal;
   double dDf2 = dS*yield_C/(yield_signal*yield_signal);
-  double dDf = (FCup_run_signal/FCup_run_C) * TMath::Sqrt(dDf1*dDf1+dDf2*dDf2);
+  double dDf = constant * (FCup_run_signal/FCup_run_C) * TMath::Sqrt(dDf1*dDf1+dDf2*dDf2);
   cout << ">>> Dilution factor " << Df << " pm "<<  dDf << endl;
   return {Df,dDf};
 }
@@ -300,7 +303,7 @@ int PbPt(string analysis_folder, string filename_C, string filename_signal, stri
     double A_den = 1 + G*G*tau/epsilon;
     A_in_bins[count_bins] = A_num/A_den;
     //Dilution Factor
-    vector<double> Df_and_errors = dilution_factor(REC_C, REC_signal, total, Q2_bin, FCup_run_C, FCup_run_signal);
+    vector<double> Df_and_errors = dilution_factor(REC_C, REC_signal, total, Q2_bin, FCup_run_C, FCup_run_signal, target);
     Df_vect[count_bins] = Df_and_errors[0];
     err_Df[count_bins] = Df_and_errors[1]; 
     
@@ -360,7 +363,7 @@ int PbPt(string analysis_folder, string filename_C, string filename_signal, stri
   gr_asym->SetLineColor(color_accent);
   gr_asym->Draw("ap");
   gr_asym->SetTitle("");
-  gr_asym->GetXaxis()->SetTitle("Q^{2} [GeV]");
+  gr_asym->GetXaxis()->SetTitle("Q^{2} [GeV^{2}]");
   gr_asym->GetYaxis()->SetTitle("#frac{N^{+} - N^{-}}{N^{+} + N^{-}}");
   gr_asym->GetYaxis()->SetRangeUser(-0.3,0.3);
   gr_asym->GetXaxis()->SetLimits(Q2_low,Q2_high);
@@ -378,13 +381,16 @@ int PbPt(string analysis_folder, string filename_C, string filename_signal, stri
   gr_asym_C->SetLineColor(color_C);                                                                                                                                     
   gr_asym_C->SetTitle("");
   gr_asym_C->Draw("p && same");
-  
-  auto legend = new TLegend(0.15,0,0.7,0.1);
+
+  gPad->SetBottomMargin(0.2);
+  auto legend = new TLegend(0.12,0.02,0.82,0.07);
   legend->SetFillStyle(0);//Transparent
   legend->SetNColumns(3);
+  legend->SetColumnSeparation(0.3);
   legend->AddEntry(gr_asym_th, "Theoretical asymmetry","p");
   legend->AddEntry(gr_asym, "Measured asymmetry","p");
   legend->AddEntry(gr_asym_C, "Carbon asymmetry","p");
+  legend->SetTextSize(0.05);
   legend->Draw();
   
   c3->cd(2);
@@ -400,7 +406,7 @@ int PbPt(string analysis_folder, string filename_C, string filename_signal, stri
   cout << ">>> Linear fit for mean PbPt" << endl;
   gr_PbPt->Fit("mean_PbPt");
   gr_PbPt->SetTitle("");
-  gr_PbPt->GetXaxis()->SetTitle("Q^{2} [GeV]");
+  gr_PbPt->GetXaxis()->SetTitle("Q^{2} [GeV^{2}]");
   gr_PbPt->GetYaxis()->SetTitle("#frac{A}{A_{th}}");
   style_large_plots();
   TCanvas *cdf = new TCanvas("Dilution factor","Dilution factor", 1200,1200);
@@ -409,12 +415,13 @@ int PbPt(string analysis_folder, string filename_C, string filename_signal, stri
   gr_df->SetMarkerColor(color_C);
   gr_df->SetTitle("");
   gr_df->Draw("ap");
-  gr_df->GetXaxis()->SetTitle("Q^{2} [GeV]");
+  gr_df->GetXaxis()->SetTitle("Q^{2} [GeV^{2}]");
   gr_df->GetYaxis()->SetTitle("Dilution factor");
   gr_df->GetYaxis()->SetRangeUser(0,1);
   gr_df->GetXaxis()->SetLimits(Q2_low,Q2_high);
   cdf->Print((path + "Df.pdf").c_str());
-
+  cdf->Print((path + "Df.png").c_str());
+  
   //Final PbPt results
   //Asymmetry results for max likelihood and 1 bin integrated methods
   double PbPt_weighted = numerator/denominator;
@@ -437,7 +444,8 @@ int PbPt(string analysis_folder, string filename_C, string filename_signal, stri
   textbox->SetTextSize(0.05);
   textbox->Draw();
   c3->Print((path + "PbPt.pdf").c_str());
-
+  c3->Print((path + "PbPt.png").c_str());
+ 
   //Writting results to a txt file
   ofstream outFile(path+"PbPt.txt");
   if (!outFile)
