@@ -280,6 +280,7 @@ int PbPt(string analysis_folder, string filename_C, string filename_signal, stri
     string todo_Q2_distrib = "Q2>>" + name_Q2_distrib;
     REC_signal->Draw(todo_Q2_distrib.c_str(),total+Q2_bin,"goff");
     centers_Q2[count_bins] = h_Q2_distrib->GetMean();
+    err_Q2[count_bins] = 0;
 
     //Mean theta_e of the bin
     string name_theta_distrib = ("h_theta_distrib"+to_string(i));         
