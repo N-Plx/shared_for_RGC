@@ -17,8 +17,8 @@ TCut exclu_cuts(string target)
   cout << "Exclusivity cuts" << endl;                                                                                                                                                                    
   TCut cut_all_topo;
   // Open file streams for CD and FD cuts files
-  string path_CD = "/projet/nucleon/pilleux/analysis_code/exclus_cuts/results/elastic_"+target+"_FTON_CDFD_pass1_verytight/cuts.txt";//"cuts_release_note_spin.txt";//"/projet/nucleon/pilleux/analysis_code/exclus_cuts/results/elastic_"+target+"_FTON_CDFD_pass1_verytight/cuts.txt";
-  string path_FD = "FD_testcuts.txt";//"cuts_release_note_spin.txt";//"FD_testcuts.txt";
+  string path_CD = target+"_CD_cuts.txt";
+  string path_FD = target+"_FD_cuts.txt";
   fstream file_CD, file_FD;
   file_CD.open(path_CD, ios::in);
   file_FD.open(path_FD, ios::in);

@@ -1,0 +1,1 @@
+El_fiducial && Nuc_chi2pid<3.4 && Nuc_chi2pid>-2.6 && TMath::Abs(El_chi2pid)<3 && Ee_calc<12 && Ee_calc>8 && TMath::Abs(mm2_total)<0.1 && ((dPhi<185 && dPhi>175) || (dPhi<-175 && dPhi>-185)) && TMath::Abs(delta_pp)<0.5 && TMath::Abs(delta_pe)<0.5
