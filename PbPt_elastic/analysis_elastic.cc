@@ -1,6 +1,6 @@
 #include "Particle.h"
 #include "Particle.cpp"
-#include "reader.h"
+#include "hipo4/reader.h"
 
 int analysis_elastic(int run_number, string target_type)
 {
@@ -8,6 +8,7 @@ int analysis_elastic(int run_number, string target_type)
   clas12root::HipoChain hipochain;
   TChain *chain = new TChain("", "");
   string filename = "/cache/clas12/rg-c/production/summer22/pass1/10.5gev/"+target_type+"/dst/train/gmn/gmn_0"+ to_string(run_number) +".hipo"; 
+  if(run_number>=16843 && run_number<=17408) filename = "/cache/clas12/rg-c/production/fall22/pass1/"+target_type+"/dst/train/gmn/gmn_0"+ to_string(run_number) +".hipo";
   ifstream my_file(filename);
   if (my_file)
     {
@@ -38,6 +39,9 @@ int analysis_elastic(int run_number, string target_type)
   double El_Theta, El_Phi;
   double El_vx, El_vy,El_vz;
   double El_status, El_chi2pid, El_beta;
+  double El_sampling, El_edep_pcal, El_edep_ecin, El_edep_ecout;
+  bool El_fiducial;
+  int El_sector_pcal;
   double Nuc_px, Nuc_py, Nuc_pz;
   double Nuc_E, Nuc_P;
   double Nuc_Theta, Nuc_Phi;
@@ -67,6 +71,12 @@ int analysis_elastic(int run_number, string target_type)
   tree->Branch("El_status", &El_status);
   tree->Branch("El_chi2pid", &El_chi2pid);
   tree->Branch("El_beta", &El_beta);
+  tree->Branch("El_fiducial", &El_fiducial);
+  tree->Branch("El_sector_pcal", &El_sector_pcal);
+  tree->Branch("El_edep_pcal",&El_edep_pcal);
+  tree->Branch("El_edep_ecin",&El_edep_ecin);
+  tree->Branch("El_edep_ecout",&El_edep_ecout);
+  tree->Branch("El_sampling",&El_sampling);
   tree->Branch("Nuc_px", &Nuc_px);
   tree->Branch("Nuc_py", &Nuc_py);
   tree->Branch("Nuc_pz", &Nuc_pz);
@@ -125,7 +135,9 @@ int analysis_elastic(int run_number, string target_type)
   hipo::bank PART(factory.getSchema("REC::Particle"));
   hipo::bank HEL_SCALER(factory.getSchema("HEL::scaler"));
   hipo::bank RUN_SCALER(factory.getSchema("RUN::scaler"));
-      
+  hipo::bank CALO(factory.getSchema("REC::Calorimeter"));
+  hipo::bank TRAJ(factory.getSchema("REC::Traj"));
+
   //FCup counts from scalers
   FCup_hel_n = 0;
   FCup_hel_p = 0;      
@@ -142,7 +154,8 @@ int analysis_elastic(int run_number, string target_type)
       event.getStructure(CONF);
       event.getStructure(HEL_SCALER);
       event.getStructure(RUN_SCALER);
-            
+      event.getStructure(TRAJ);
+      event.getStructure(CALO);
       //Event info                                                                                                                                                                                   
       RunNumber = CONF.getInt("run", 0);
       Helicity = HEL.getInt("helicity", 0);
@@ -157,7 +170,9 @@ int analysis_elastic(int run_number, string target_type)
 
       if(RUN_SCALER.getRows()>0)
 	{
-	  FCup_run=RUN_SCALER.getFloat("fcupgated",0);
+	  float entry = RUN_SCALER.getFloat("fcupgated",0);
+	  if(entry>FCup_run) FCup_run=entry;
+	  //FCup_run=RUN_SCALER.getFloat("fcupgated",0);
 	}
       
       //Number of particles in each event
@@ -178,7 +193,7 @@ int analysis_elastic(int run_number, string target_type)
 	  double vz  = PART.getFloat("vz", i);
 	  TVector3 position(vx,vy,vz);
 	  int status = PART.getInt("status", i);
-	  int chi2pid = PART.getFloat("chi2pid", i);
+	  double chi2pid = PART.getFloat("chi2pid", i);
 	  int charge = PART.getInt("charge", i);      	    
 	  double beta=PART.getFloat("beta",i);
 	  
@@ -213,7 +228,44 @@ int analysis_elastic(int run_number, string target_type)
 	      
 	      delta_pe = pe_calc - El_P;
 	      delta_Q2 = Q2_calc - Q2;
+
+	      double sampling=0, edep_pcal=0, edep_ecin=0, edep_ecout=0, edep=0;
+	      int sector=0;
+	      bool fiducial=true;
+
+	      //fiducial DC                                                                                                                                                                            
+	      for (int i_traj = 0; i_traj < TRAJ.getRows(); i_traj++)
+		{
+		  int pindex = TRAJ.getInt("pindex", i_traj);
+		  if(pindex!=i) continue; //looking at current particle			  
+		  int detector = TRAJ.getInt("detector" , i_traj);
+		  if(detector!=6) continue;//LOOKING AT DRIFT CHAMBERS                                                                                                                                 
+		  if(TRAJ.getFloat("edge" ,i_traj)<4) fiducial=false;
+		}
+
 	      
+	      for (int i_calo = 0; i_calo < CALO.getRows(); i_calo++)
+		{
+		  if(CALO.getInt("pindex", i_calo)!=i) continue;//Only current particle                                                                                                                
+		  if(CALO.getInt("detector", i_calo)!=7) continue;//ECAL                                                                                                                               
+		  double edep_calo = CALO.getFloat("energy", i_calo);
+		  if(CALO.getInt("layer", i_calo)==4) {edep_ecin = edep_calo; edep+=edep_calo;}//ECIN                                                                                                  
+		  if(CALO.getInt("layer", i_calo)==7) {edep_ecout = edep_calo; edep+=edep_calo;}//ECOUT                                                                                                
+		  if(CALO.getInt("layer", i_calo)==1)
+		    {//PCAL                                                                                                                                                                            
+		      edep_pcal = edep_calo;
+		      sector = CALO.getInt("sector", i_calo);
+		      edep+=edep_calo;
+		      if(CALO.getFloat("lv", i_calo)<8 || CALO.getFloat("lw", i_calo)<8) fiducial=false;
+		    }
+		}
+	      sampling = edep/momentum.Mag();
+	      El_edep_pcal = edep_pcal;
+	      El_edep_ecin = edep_ecin;
+	      El_edep_ecout = edep_ecout;
+	      El_sampling=sampling;
+	      El_fiducial=fiducial;
+	      El_sector_pcal=sector;
 	      electrons.push_back(electron);
 	    }
 	  
