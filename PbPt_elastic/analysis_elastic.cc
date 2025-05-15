@@ -309,7 +309,6 @@ int analysis_elastic(int run_number, string target_type)
 	      bool bad_ecout_S2 = (sector ==2)&&(lw_7 > 68 && lw_7 < 84);
 	      bool bad_ecout_S5 = (sector == 5)&&(lu_7 > 200 && lu_7 < 220);
 	      bool bad_ec = bad_ecin_S1 || bad_ecout_S2 || bad_ecout_S5;
-	      cout << bad_pcal2 << " bad pcal2" << endl;
 	      El_fiducial1 = El_fiducial1 && !bad_pcal1;
 	      El_fiducial2 = El_fiducial2 && !bad_pcal2 && !bad_ec;
 	      El_fiducial3 = El_fiducial3 && !bad_pcal3 && !bad_ec;
