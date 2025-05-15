@@ -2,6 +2,7 @@
 #include "Particle.cpp"
 #include "hipo4/reader.h"
 
+
 int analysis_elastic(int run_number, string target_type)
 {
   //Input file
@@ -9,6 +10,7 @@ int analysis_elastic(int run_number, string target_type)
   TChain *chain = new TChain("", "");
   string filename = "/cache/clas12/rg-c/production/summer22/pass1/10.5gev/"+target_type+"/dst/train/gmn/gmn_0"+ to_string(run_number) +".hipo"; 
   if(run_number>=16843 && run_number<=17408) filename = "/cache/clas12/rg-c/production/fall22/pass1/"+target_type+"/dst/train/gmn/gmn_0"+ to_string(run_number) +".hipo";
+  if(run_number>=17477) filename = "/cache/clas12/rg-c/production/spring23/pass1/"+target_type+"/dst/train/gmn/gmn_0"+ to_string(run_number) +".hipo";
   ifstream my_file(filename);
   if (my_file)
     {
@@ -22,7 +24,7 @@ int analysis_elastic(int run_number, string target_type)
     }
 
   //Output file                                                                                                                                                                                          
-  TFile *outfile = new TFile(std::string("/volatile/clas12/pilleux/analysis_results/pass1/elastic/analysis_elastic_"+ to_string(run_number) +  ".root").c_str(), "RECREATE"); 
+  TFile *outfile = new TFile(std::string("/volatile/clas12/pilleux/analysis_results/pass1/elastic/spring23/analysis_elastic_"+ to_string(run_number) +  ".root").c_str(), "RECREATE"); 
 
   //Define hipo variables
   hipo::reader reader;
@@ -40,13 +42,14 @@ int analysis_elastic(int run_number, string target_type)
   double El_vx, El_vy,El_vz;
   double El_status, El_chi2pid, El_beta;
   double El_sampling, El_edep_pcal, El_edep_ecin, El_edep_ecout;
-  bool El_fiducial;
+  bool El_fiducial, El_fiducial1, El_fiducial2, El_fiducial3;
   int El_sector_pcal;
   double Nuc_px, Nuc_py, Nuc_pz;
   double Nuc_E, Nuc_P;
   double Nuc_Theta, Nuc_Phi;
   double Nuc_vx, Nuc_vy,Nuc_vz;
   double Nuc_status, Nuc_chi2pid, Nuc_beta;
+  bool Nuc_fiducial;
   double mm2_eN_N, Q2, delta_Q2, W2, Emiss,p_perp,p_long;
   double pe_calc,Ee_calc,Ee_calc_purelastic, pp_calc, Q2_calc, dPhi;
   double delta_pe, delta_pp, mm2_total;
@@ -72,6 +75,9 @@ int analysis_elastic(int run_number, string target_type)
   tree->Branch("El_chi2pid", &El_chi2pid);
   tree->Branch("El_beta", &El_beta);
   tree->Branch("El_fiducial", &El_fiducial);
+  tree->Branch("El_fiducial1", &El_fiducial1);
+  tree->Branch("El_fiducial2", &El_fiducial2);
+  tree->Branch("El_fiducial3", &El_fiducial3);
   tree->Branch("El_sector_pcal", &El_sector_pcal);
   tree->Branch("El_edep_pcal",&El_edep_pcal);
   tree->Branch("El_edep_ecin",&El_edep_ecin);
@@ -90,6 +96,7 @@ int analysis_elastic(int run_number, string target_type)
   tree->Branch("Nuc_status", &Nuc_status);
   tree->Branch("Nuc_chi2pid", &Nuc_chi2pid);
   tree->Branch("Nuc_beta", &Nuc_beta);
+  tree->Branch("Nuc_fiducial", &Nuc_fiducial);
   tree->Branch("mm2_eN_N", &mm2_eN_N);
   tree->Branch("mm2_total", &mm2_total);
   tree->Branch("Q2", &Q2);
@@ -233,32 +240,79 @@ int analysis_elastic(int run_number, string target_type)
 	      int sector=0;
 	      bool fiducial=true;
 
-	      //fiducial DC                                                                                                                                                                            
+	      double dc_edge1, dc_edge2, dc_edge3;
+	      	      
+	      //fiducial DC                         
 	      for (int i_traj = 0; i_traj < TRAJ.getRows(); i_traj++)
 		{
 		  int pindex = TRAJ.getInt("pindex", i_traj);
-		  if(pindex!=i) continue; //looking at current particle			  
+		  if(pindex!=i) continue; //looking at current particle
 		  int detector = TRAJ.getInt("detector" , i_traj);
-		  if(detector!=6) continue;//LOOKING AT DRIFT CHAMBERS                                                                                                                                 
-		  if(TRAJ.getFloat("edge" ,i_traj)<4) fiducial=false;
+		  if(detector!=6) continue;//LOOKING AT DRIFT CHAMBERS
+		  int layer = TRAJ.getInt("layer" , i_traj);
+		  double edge = TRAJ.getFloat("edge" ,i_traj);
+		  
+		  if(layer==6) dc_edge1 = edge;
+		  else if(layer==18) dc_edge2 = edge;
+		  else if(layer==36) dc_edge3 = edge;
+		  else cerr << "Invalid DC layer : " << layer << endl;	      
 		}
-
+	    
+	      El_fiducial1 = dc_edge1 > 5 && dc_edge2 > 5 && dc_edge3 > 10;
+	      El_fiducial2 = El_fiducial1;
+	      El_fiducial3 = El_fiducial1;
+	      
+	      // Initialize variables for storing the index and values of the cal bank 3
+	      float lv_1 = 0.0, lw_1 = 0.0, lu_1 = 0.0;
+	      float lv_4 = 0.0, lw_4 = 0.0, lu_4 = 0.0;
+	      float lv_7 = 0.0, lw_7 = 0.0, lu_7 = 0.0;
 	      
 	      for (int i_calo = 0; i_calo < CALO.getRows(); i_calo++)
 		{
-		  if(CALO.getInt("pindex", i_calo)!=i) continue;//Only current particle                                                                                                                
-		  if(CALO.getInt("detector", i_calo)!=7) continue;//ECAL                                                                                                                               
+		  if(CALO.getInt("pindex", i_calo)!=i) continue;//Only current particle
+		  if(CALO.getInt("detector", i_calo)!=7) continue;//ECAL
 		  double edep_calo = CALO.getFloat("energy", i_calo);
-		  if(CALO.getInt("layer", i_calo)==4) {edep_ecin = edep_calo; edep+=edep_calo;}//ECIN                                                                                                  
-		  if(CALO.getInt("layer", i_calo)==7) {edep_ecout = edep_calo; edep+=edep_calo;}//ECOUT                                                                                                
+		  int sector = CALO.getInt("sector", i_calo);
+		  
+		  if(CALO.getInt("layer", i_calo)==4)//ECIN
+		    {
+		      lv_4 = CALO.getFloat("lv", i_calo);
+		      lw_4 = CALO.getFloat("lw", i_calo);
+		      lu_4 = CALO.getFloat("lu", i_calo);
+		      edep_ecin = edep_calo;
+		      edep+=edep_calo;
+		    }                                                                                                  
+		  if(CALO.getInt("layer", i_calo)==7)//ECOUT
+		    {
+		      lv_7 = CALO.getFloat("lv", i_calo);
+		      lw_7 = CALO.getFloat("lw", i_calo);
+		      lu_7 = CALO.getFloat("lu", i_calo);
+		      edep_ecout = edep_calo;
+		      edep+=edep_calo;
+		    }
 		  if(CALO.getInt("layer", i_calo)==1)
-		    {//PCAL                                                                                                                                                                            
+		    {//PCAL
+		      lv_1 = CALO.getFloat("lv", i_calo);
+                      lw_1 = CALO.getFloat("lw", i_calo);
+                      lu_1 = CALO.getFloat("lu", i_calo);
 		      edep_pcal = edep_calo;
 		      sector = CALO.getInt("sector", i_calo);
 		      edep+=edep_calo;
 		      if(CALO.getFloat("lv", i_calo)<8 || CALO.getFloat("lw", i_calo)<8) fiducial=false;
 		    }
 		}
+
+	      bool bad_pcal1 = (lw_1 < 9 || lv_1 < 9 || lu_1 < 14);
+	      bool bad_pcal2 = (lw_1 < 14 || lv_1 < 14 || lu_1 < 29);
+	      bool bad_pcal3 = ((lw_1 < 19 || lv_1 < 19)||( lu_1 < 39 || lu_1 > 400));
+	      bool bad_ecin_S1 = (sector == 1)&&(lv_4 > 72 && lv_4 < 94);
+	      bool bad_ecout_S2 = (sector ==2)&&(lw_7 > 68 && lw_7 < 84);
+	      bool bad_ecout_S5 = (sector == 5)&&(lu_7 > 200 && lu_7 < 220);
+	      bool bad_ec = bad_ecin_S1 || bad_ecout_S2 || bad_ecout_S5;
+	      cout << bad_pcal2 << " bad pcal2" << endl;
+	      El_fiducial1 = El_fiducial1 && !bad_pcal1;
+	      El_fiducial2 = El_fiducial2 && !bad_pcal2 && !bad_ec;
+	      El_fiducial3 = El_fiducial3 && !bad_pcal3 && !bad_ec;
 	      sampling = edep/momentum.Mag();
 	      El_edep_pcal = edep_pcal;
 	      El_edep_ecin = edep_ecin;
@@ -287,6 +341,26 @@ int analysis_elastic(int run_number, string target_type)
 	      Nuc_status = status;
 	      Nuc_chi2pid = chi2pid;
 	      Nuc_beta=beta;
+
+	      double cvt_edge1, cvt_edge2, cvt_edge3, cvt_edge5, cvt_edge7, cvt_edge12;
+	      //fiducial CVT
+              for (int i_traj = 0; i_traj < TRAJ.getRows(); i_traj++)
+                {
+                  int pindex = TRAJ.getInt("pindex", i_traj);
+                  if(pindex!=i) continue; //looking at current particle
+                  int detector = TRAJ.getInt("detector" , i_traj);
+		  if(detector!=5) continue;//LOOKING AT CVT
+		  int layer = TRAJ.getInt("layer" , i_traj);
+                  double edge = TRAJ.getFloat("edge" ,i_traj);
+		  if(layer==1) cvt_edge1=edge;
+		  else if(layer==3) cvt_edge3=edge;
+		  else if(layer==5) cvt_edge5=edge;
+		  else if(layer==7) cvt_edge7=edge;
+		  else if(layer==12) cvt_edge12=edge;
+		}
+                
+              Nuc_fiducial = cvt_edge1 > 0 && cvt_edge3 > 0 && cvt_edge5 > 0
+                && cvt_edge7 > -2 && cvt_edge12 > -5;
 	      
 	      protons.push_back(proton);
 	    }
