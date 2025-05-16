@@ -23,9 +23,8 @@ int analysis_elastic(int run_number, string target_type)
       return 0;
     }
 
-  //Output file                                                                                                                                                                                          
+  //Output file                                                                                                                           
   TFile *outfile = new TFile(std::string("/volatile/clas12/pilleux/analysis_results/pass1/elastic/spring23/analysis_elastic_"+ to_string(run_number) +  ".root").c_str(), "RECREATE"); 
-
   //Define hipo variables
   hipo::reader reader;
   hipo::dictionary factory;
@@ -42,14 +41,14 @@ int analysis_elastic(int run_number, string target_type)
   double El_vx, El_vy,El_vz;
   double El_status, El_chi2pid, El_beta;
   double El_sampling, El_edep_pcal, El_edep_ecin, El_edep_ecout;
-  bool El_fiducial, El_fiducial1, El_fiducial2, El_fiducial3;
+  bool El_fiducial=false, El_fiducial1=false, El_fiducial2=false, El_fiducial3=false;
   int El_sector_pcal;
   double Nuc_px, Nuc_py, Nuc_pz;
   double Nuc_E, Nuc_P;
   double Nuc_Theta, Nuc_Phi;
   double Nuc_vx, Nuc_vy,Nuc_vz;
   double Nuc_status, Nuc_chi2pid, Nuc_beta;
-  bool Nuc_fiducial;
+  bool Nuc_fiducial=false;
   double mm2_eN_N, Q2, delta_Q2, W2, Emiss,p_perp,p_long;
   double pe_calc,Ee_calc,Ee_calc_purelastic, pp_calc, Q2_calc, dPhi;
   double delta_pe, delta_pp, mm2_total;
@@ -238,10 +237,10 @@ int analysis_elastic(int run_number, string target_type)
 
 	      double sampling=0, edep_pcal=0, edep_ecin=0, edep_ecout=0, edep=0;
 	      int sector=0;
-	      bool fiducial=true;
+	      bool fiducial=true, fiducial1=false, fiducial2=false, fiducial3=false;
 
 	      double dc_edge1, dc_edge2, dc_edge3;
-	      	      
+	      
 	      //fiducial DC                         
 	      for (int i_traj = 0; i_traj < TRAJ.getRows(); i_traj++)
 		{
@@ -257,10 +256,9 @@ int analysis_elastic(int run_number, string target_type)
 		  else if(layer==36) dc_edge3 = edge;
 		  else cerr << "Invalid DC layer : " << layer << endl;	      
 		}
-	    
-	      El_fiducial1 = dc_edge1 > 5 && dc_edge2 > 5 && dc_edge3 > 10;
-	      El_fiducial2 = El_fiducial1;
-	      El_fiducial3 = El_fiducial1;
+
+	      bool dc_fiducial = false;
+	      if(dc_edge1 > 5 && dc_edge2 > 5 && dc_edge3 > 10) dc_fiducial = true;
 	      
 	      // Initialize variables for storing the index and values of the cal bank 3
 	      float lv_1 = 0.0, lw_1 = 0.0, lu_1 = 0.0;
@@ -309,15 +307,18 @@ int analysis_elastic(int run_number, string target_type)
 	      bool bad_ecout_S2 = (sector ==2)&&(lw_7 > 68 && lw_7 < 84);
 	      bool bad_ecout_S5 = (sector == 5)&&(lu_7 > 200 && lu_7 < 220);
 	      bool bad_ec = bad_ecin_S1 || bad_ecout_S2 || bad_ecout_S5;
-	      El_fiducial1 = El_fiducial1 && !bad_pcal1;
-	      El_fiducial2 = El_fiducial2 && !bad_pcal2 && !bad_ec;
-	      El_fiducial3 = El_fiducial3 && !bad_pcal3 && !bad_ec;
+	      if(dc_fiducial && !bad_pcal1) fiducial1 = true;
+	      if(dc_fiducial && !bad_pcal2 && !bad_ec) fiducial2 = true;
+	      if(dc_fiducial && !bad_pcal3 && !bad_ec) fiducial3 = true;
 	      sampling = edep/momentum.Mag();
 	      El_edep_pcal = edep_pcal;
 	      El_edep_ecin = edep_ecin;
 	      El_edep_ecout = edep_ecout;
 	      El_sampling=sampling;
 	      El_fiducial=fiducial;
+	      El_fiducial1=fiducial1;
+	      El_fiducial2=fiducial2;
+	      El_fiducial3=fiducial3;
 	      El_sector_pcal=sector;
 	      electrons.push_back(electron);
 	    }
@@ -341,6 +342,7 @@ int analysis_elastic(int run_number, string target_type)
 	      Nuc_chi2pid = chi2pid;
 	      Nuc_beta=beta;
 
+	      bool fiducial=false;
 	      double cvt_edge1, cvt_edge2, cvt_edge3, cvt_edge5, cvt_edge7, cvt_edge12;
 	      //fiducial CVT
               for (int i_traj = 0; i_traj < TRAJ.getRows(); i_traj++)
@@ -358,9 +360,8 @@ int analysis_elastic(int run_number, string target_type)
 		  else if(layer==12) cvt_edge12=edge;
 		}
                 
-              Nuc_fiducial = cvt_edge1 > 0 && cvt_edge3 > 0 && cvt_edge5 > 0
-                && cvt_edge7 > -2 && cvt_edge12 > -5;
-	      
+              if(cvt_edge1 > 0 && cvt_edge3 > 0 && cvt_edge5 > 0 && cvt_edge7 > -2 && cvt_edge12 > -5) fiducial = true;
+	      Nuc_fiducial = fiducial;
 	      protons.push_back(proton);
 	    }
 	}//END LOOP ON PARTICLES
