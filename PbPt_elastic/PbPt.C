@@ -25,12 +25,12 @@ TCut exclu_cuts(string target)
   //Check files sanity
   if (file_CD.bad())
     {
-      std::cerr << "Unable to open " + path_CD + "\n";
+      cerr << "Unable to open " + path_CD + "\n";
       exit(8);
     }
   if (file_FD.bad())
     {
-      std::cerr << "Unable to open " + path_FD + "\n";
+      cerr << "Unable to open " + path_FD + "\n";
       exit(8);
     }
   cout << ">>> Cut files opened " << path_CD << " and " << path_FD << endl;
@@ -123,7 +123,7 @@ int PbPt(string analysis_folder, string filename_C, string filename_signal, stri
   cout << "Creating output dir" << endl;
   
   int i = 0;
-  string path = "./results/PbPt_elastic_" + to_string(i) + "/";
+  stsring path = "./results/PbPt_elastic_" + to_string(i) + "/";
   bool condition = DirectoryExists( path.c_str());
   while (condition == true)
     {
@@ -147,6 +147,7 @@ int PbPt(string analysis_folder, string filename_C, string filename_signal, stri
   for (int i_files = 0; i_files < run_C.size(); i_files++)        
     {        
       int run_number = run_C.at(i_files);
+      if(run_number == 0) {cerr<<"RUNS READ INCORRECTLY!"<<endl; return 1;}
       string filename_C = analysis_folder + "/pass1_verytight_cut_"+target+"_analysis_elastic_" + to_string(run_number) + ".root";                                                     
       //Check if the file exists        
       if (boost::filesystem::exists(filename_C))  
@@ -163,6 +164,7 @@ int PbPt(string analysis_folder, string filename_C, string filename_signal, stri
   for (int i_files = 0; i_files < run_signal.size(); i_files++)       
     {                     
       int run_number = run_signal.at(i_files);
+      if(run_number == 0) {cerr<<"RUNS READ INCORRECTLY!"<<endl; return 1;}
       string filename_signal = analysis_folder + "/pass1_verytight_cut_"+target+"_analysis_elastic_" + to_string(run_number) + ".root";                                                     
       //Check if the file exists
       if (boost::filesystem::exists(filename_signal))  
