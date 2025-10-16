@@ -50,7 +50,7 @@ int analysis_elastic(int run_number, string target_type)
     }
 
   //Output file                                                                                                                           
-  TFile *outfile = new TFile(std::string("/volatile/clas12/pilleux/analysis_results/pass1/elastic/spring23/analysis_elastic_"+ to_string(run_number) +  ".root").c_str(), "RECREATE"); 
+  TFile *outfile = new TFile(std::string("/volatile/clas12/pilleux/analysis_results/pass1/elastic/with_qadb/analysis_elastic_"+ to_string(run_number) +  ".root").c_str(), "RECREATE"); 
   //Define hipo variables
   hipo::reader reader;
   hipo::dictionary factory;
@@ -200,9 +200,9 @@ int analysis_elastic(int run_number, string target_type)
       int evnum = CONF.getInt("event", 0);
       Helicity = HEL.getInt("helicity", 0);
       //QADB
-      bool qadb_is_ok=true;
+      qadb_is_ok=1;
       if(RunNumber==0 || evnum==0) continue;
-      if(!qa->Pass(RunNumber,evnum)) {qadb_is_ok=false;}
+      if(!qa->Pass(RunNumber,evnum)) {qadb_is_ok=0;}
       else {qa->AccumulateCharge(); qa->AccumulateChargeHL();}
       Helicity *= qa->CorrectHelicitySign(RunNumber, evnum);      
       
