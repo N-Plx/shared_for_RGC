@@ -1,10 +1,36 @@
 #include "Particle.h"
 #include "Particle.cpp"
 #include "hipo4/reader.h"
+#include "QADB.h"
+using namespace QA;
 
+QADB * qa = new QADB("latest");//run_min,run_max);
+// decide which runs for which you care about the 'Misc' defect bit or not
+std::vector<int> allow_these_misc_assignments = {
+  16850,16851,16852,16853,16856,16857,16898,16899,16901,16908,16945,17179,17180,17181,17182,
+  17183,16047,16049,17230,17252,17272,17484,17491,16096,16098,16100,16101,16102,16103,16105,
+  16106,16107,16262,16263,16273,16276,16734,17069,17179,17180,17181,17182,17183,17188,17189,
+  17191,16733,16736,17735
+  //these for now are runs for which the rich was not working or lumi scans or raster scans or different trigger files
+  //Runs to be checked later because they may be ok: 17506,17507,17796,17797 which have weird tpol stuff, need to look at elastics
+};
 
 int analysis_elastic(int run_number, string target_type)
-{
+{  
+  qa->CheckForDefect("TotalOutlier",true);
+  qa->CheckForDefect("TerminalOutlier",true);
+  qa->CheckForDefect("MarginalOutlier",true);
+  qa->CheckForDefect("SectorLoss",true);
+  qa->CheckForDefect("LowLiveTime",true);
+  qa->CheckForDefect("Misc",true);
+  qa->CheckForDefect("LossFT",true);
+  qa->CheckForDefect("TotalOutlierFT",true);
+  qa->CheckForDefect("TerminalOutlierFT",true);
+  qa->CheckForDefect("MarginalOutlierFT",true);
+
+  cout <<"QADB defects set" << endl;
+  for(auto run : allow_these_misc_assignments) {cout << run << endl; qa->AllowMiscBit(run);}
+  
   //Input file
   clas12root::HipoChain hipochain;
   TChain *chain = new TChain("", "");
@@ -32,7 +58,7 @@ int analysis_elastic(int run_number, string target_type)
   hipo::event event;
   
   //Output tree
-  TTree *tree = new TTree("Elastic", "Elastic");                                                                                                                                                    
+  TTree *tree = new TTree("Elastic", "Elastic");                                                                                                  
   TTree *tree_scaler = new TTree("Scaler info", "Scaler info");
   int RunNumber, Helicity, Event_ID;
   double El_px, El_py, El_pz;
@@ -54,7 +80,9 @@ int analysis_elastic(int run_number, string target_type)
   double delta_pe, delta_pp, mm2_total;
   double Ath;
   double FCup_hel_p, FCup_hel_n, FCup_run;
+  double FCup_p_qa, FCup_n_qa, FCup_z_qa, FCup_qa;
   double nucleon_mass = 938.272081/1000.;
+  int qadb_is_ok;
   
   tree->Branch("RunNumber", &RunNumber);
   tree_scaler->Branch("RunNumber", &RunNumber);
@@ -113,10 +141,15 @@ int analysis_elastic(int run_number, string target_type)
   tree->Branch("delta_pe", &delta_pe);
   tree->Branch("delta_pp", &delta_pp);
   tree->Branch("Ath", &Ath);
+  tree->Branch("qadb_is_ok", &qadb_is_ok);
   tree_scaler->Branch("FCup_hel_p", &FCup_hel_p);
   tree_scaler->Branch("FCup_hel_n", &FCup_hel_n);
   tree_scaler->Branch("FCup_run", &FCup_run);
-
+  tree_scaler->Branch("FCup_p_qa", &FCup_p_qa);
+  tree_scaler->Branch("FCup_z_qa", &FCup_z_qa);
+  tree_scaler->Branch("FCup_n_qa", &FCup_n_qa);
+  tree_scaler->Branch("FCup_qa", &FCup_qa);
+  
   //Incident electron beam                                                                                                                                                    
   double Ebeam = 10.5473;
   TVector3 beam_energy(0,0,Ebeam);
@@ -164,12 +197,21 @@ int analysis_elastic(int run_number, string target_type)
       event.getStructure(CALO);
       //Event info                                                                                                                                                                                   
       RunNumber = CONF.getInt("run", 0);
+      int evnum = CONF.getInt("event", 0);
       Helicity = HEL.getInt("helicity", 0);
+      //QADB
+      bool qadb_is_ok=true;
+      if(RunNumber==0 || evnum==0) continue;
+      if(!qa->Pass(RunNumber,evnum)) {qadb_is_ok=false;}
+      else {qa->AccumulateCharge(); qa->AccumulateChargeHL();}
+      Helicity *= qa->CorrectHelicitySign(RunNumber, evnum);      
       
       //Scalers information
       for(int row=0; row<HEL_SCALER.getRows(); row++)
 	{
 	  int hel = HEL_SCALER.getByte("helicity",row);
+	  //WRONG HWP RUNS. THIS WILL NEED TO BE REMOVED IF THE RUNS ARE RECOOKED.
+	  if(RunNumber == 17555 || RunNumber == 17735) hel = -hel;
 	  if(hel == -1) FCup_hel_n+=HEL_SCALER.getFloat("fcupgated",row);
 	  if(hel == 1) FCup_hel_p+=HEL_SCALER.getFloat("fcupgated",row);
 	}
@@ -395,11 +437,53 @@ int analysis_elastic(int run_number, string target_type)
       protons.clear();
       
     }//END LOOP ON EVENTS
+
+  FCup_qa = qa->GetAccumulatedCharge();
+  FCup_p_qa = qa->GetAccumulatedChargeHL(1);
+  FCup_n_qa = qa->GetAccumulatedChargeHL(-1);
+  FCup_z_qa = qa->GetAccumulatedChargeHL(0);
   
   tree_scaler->Fill();
-  outfile->cd(); 
-  tree->Write();
-  tree_scaler->Write();
+  
+  // Write the original trees to the first file
+  outfile->cd();
+  tree->Write();               // Write main tree
+  tree_scaler->Write();        // Write scaler tree to outfile
+
+  // Create the fiducial tree
+  TFile *fiducial_outfile = new TFile(std::string("/volatile/clas12/pilleux/analysis_results/pass1/elastic/spring23/fiducial_analysis_elastic_"+ to_string(run_number) +  ".root").c_str(), "RECREATE");
+  fiducial_outfile->cd();
+  TTree *fiducial_tree = tree->CloneTree(0);
+  
+  // Fill fiducial tree with filtered entries
+  for (Long64_t i = 0; i < tree->GetEntries(); i++) {
+    tree->GetEntry(i);
+    if (El_fiducial1 && Nuc_fiducial)
+      fiducial_tree->Fill();
+  }
+  fiducial_tree->Write();
+  
+  // Clone and write tree_scaler to second file
+  TTree *fiducial_scaler = tree_scaler->CloneTree();  // Clone full scaler tree
+  fiducial_scaler->Write();                           // Safe to write this one
+
+  // Create the precut tree
+  TFile *cut_outfile = new TFile(std::string("/volatile/clas12/pilleux/analysis_results/pass1/elastic/spring23/precut_analysis_elastic_"+ to_string(run_number) +  ".root").c_str(), "RECREATE");
+  cut_outfile->cd();
+  TTree *cut_tree = tree->CloneTree(0);
+  
+  for (Long64_t i = 0; i < tree->GetEntries(); i++) {
+    tree->GetEntry(i);
+    if (W2<2 && W2>0)
+      cut_tree->Fill();
+  }
+  cut_tree->Write();
+  TTree *cut_scaler = tree_scaler->CloneTree();
+  cut_scaler->Write();
+  
+  // Close files
   outfile->Close();
+  fiducial_outfile->Close();
+  cut_outfile->Close();
   return 1;
 }
