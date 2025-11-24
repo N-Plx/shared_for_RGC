@@ -60,8 +60,8 @@ double error_asym(double Np, double Nm, double dNp, double dNm, double Df=1, dou
   //Input: (double) FCup Normalized yields and their errors, Dilution Factor and its error
   //Ouput: (double) stat error
   double den = Df*pow((Np + Nm),2); 
-  double term_Np = 2*Np / den;        
-  double term_Nm = 2*Nm / den;
+  double term_Np = 2*Nm / den;        
+  double term_Nm = 2*Np / den;
   double asym = (Np-Nm)/(Df*(Np+Nm));
   double term_Df = asym/Df;
   double err_squared = term_Np*term_Np*dNp*dNp + term_Nm*term_Nm*dNm*dNm + term_Df*term_Df*dDf*dDf;
@@ -88,6 +88,10 @@ vector<double> dilution_factor(TTree *REC_C, TTree* REC_signal, TCut exclusivity
   //Dilution Factor
   double constant = 0.7;
   if(target=="NH3") constant = 0.82;
+
+  //USING DEREK'S PF
+  //constant = 0.5362/0.6 * constant;
+  
   double Df = 1 - constant*(normalised_C/normalised_signal);
   //Stat Error
   double dDf1 = dC/yield_signal;
