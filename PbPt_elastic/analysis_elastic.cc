@@ -411,7 +411,8 @@ int analysis_elastic(int run_number, string target_type)
       if(protons.size() == 1 && electrons.size()==1)
 	{
 	  Ee_calc = nucleon_mass*(1/(tan(electrons[0].theta*(TMath::Pi()/180.)/2)*tan(protons[0].theta*TMath::Pi()/180.))-1.);
-	  dPhi = electrons[0].phi - protons[0].phi;
+	  dPhi = TMath::Abs(electrons[0].phi - protons[0].phi);
+	  if(!(dPhi>170 && dPhi<190)) {electrons.clear(); protons.clear(); continue;}
 	  delta_pp = pp_calc - protons[0].getmomentum().Mag();   
 	  Emiss = electron_beam.energy + proton_target.energy - electrons[0].energy - protons[0].energy;
 	  mm2_total = (electron_beam.LorentzVector + proton_target.LorentzVector - electrons[0].LorentzVector - protons[0].LorentzVector).M2();
@@ -485,5 +486,6 @@ int analysis_elastic(int run_number, string target_type)
   outfile->Close();
   fiducial_outfile->Close();
   cut_outfile->Close();
+
   return 1;
 }
